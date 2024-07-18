@@ -23,4 +23,9 @@ public class Consumer {
     public void getAutomobileListener3(Automobile automobile) {
         log.info("\u001B[34m" + "Automobile Consumer 3: " + automobile + "\u001B[0m");
     }
+
+    @JmsListener(destination = "AutoTopicRed", containerFactory = "redAutomobileJmsContFactory")
+    public void handleRedAutomobiles(Automobile automobile) {
+        log.info("\u001B[35m" + "Automobile RED Consumer 4: " + automobile + "\u001B[0m");
+    }
 }

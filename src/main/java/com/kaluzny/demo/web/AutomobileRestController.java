@@ -36,18 +36,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AutomobileRestController implements AutomobileResource, AutomobileOpenApi, JMSPublisher {
 
-    private final AutomobileRepository repository;
-    private final JmsTemplate jmsTemplate;
+    private final AutomobileService automobileService;
 
-    public static double getTiming(Instant start, Instant end) {
-        return Duration.between(start, end).toMillis();
-    }
-
-    @Transactional
-    @PostConstruct
-    public void init() {
-        repository.save(new Automobile(1L, "Ford", "Green", LocalDateTime.now(), LocalDateTime.now(), true, false));
-    }
 
     @PostMapping("/automobiles")
     @ResponseStatus(HttpStatus.CREATED)
@@ -55,7 +45,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     //@RolesAllowed("ADMIN")
     public Automobile saveAutomobile(@Valid @RequestBody Automobile automobile) {
         log.info("saveAutomobile() - start: automobile = {}", automobile);
-        Automobile savedAutomobile = repository.save(automobile);
+        Automobile savedAutomobile = automobileService.saveAuto(automobile);
         log.info("saveAutomobile() - end: savedAutomobile = {}", savedAutomobile.getId());
         return savedAutomobile;
     }
@@ -66,7 +56,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @PreAuthorize("hasRole('USER')")
     public Collection<Automobile> getAllAutomobiles() {
         log.info("getAllAutomobiles() - start");
-        Collection<Automobile> collection = repository.findAll();
+        Collection<Automobile> collection =automobileService.getAllAuto();
         log.info("getAllAutomobiles() - end");
         return collection;
     }
@@ -78,22 +68,18 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @PreAuthorize("hasRole('PERSON')")
     public Automobile getAutomobileById(@PathVariable Long id) {
         log.info("getAutomobileById() - start: id = {}", id);
-        Automobile receivedAutomobile = repository.findById(id)
-                //.orElseThrow(() -> new EntityNotFoundException("Automobile not found with id = " + id));
-                .orElseThrow(ThereIsNoSuchAutoException::new);
-        if (receivedAutomobile.getDeleted()) {
-            throw new AutoWasDeletedException();
-        }
+        Automobile receivedAutomobile = automobileService.getAutoById(id);
         log.info("getAutomobileById() - end: Automobile = {}", receivedAutomobile.getId());
         return receivedAutomobile;
     }
+
 
     @Hidden
     @GetMapping(value = "/automobiles", params = {"name"})
     @ResponseStatus(HttpStatus.OK)
     public Collection<Automobile> findAutomobileByName(@RequestParam(value = "name") String name) {
         log.info("findAutomobileByName() - start: name = {}", name);
-        Collection<Automobile> collection = repository.findByName(name);
+        Collection<Automobile> collection = automobileService.findAutoByName(name);
         log.info("findAutomobileByName() - end: collection = {}", collection);
         return collection;
     }
@@ -103,19 +89,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     //@CachePut(value = "automobile", key = "#id")
     public Automobile refreshAutomobile(@PathVariable Long id, @RequestBody Automobile automobile) {
         log.info("refreshAutomobile() - start: id = {}, automobile = {}", id, automobile);
-        Automobile updatedAutomobile = repository.findById(id)
-                .map(entity -> {
-                    entity.checkColor(automobile);
-                    entity.setName(automobile.getName());
-                    entity.setColor(automobile.getColor());
-                    entity.setUpdateDate(automobile.getUpdateDate());
-                    if (entity.getDeleted()) {
-                        throw new AutoWasDeletedException();
-                    }
-                    return repository.save(entity);
-                })
-                //.orElseThrow(() -> new EntityNotFoundException("Automobile not found with id = " + id));
-                .orElseThrow(ThereIsNoSuchAutoException::new);
+        Automobile updatedAutomobile = automobileService.refreshAuto(id, automobile);
         log.info("refreshAutomobile() - end: updatedAutomobile = {}", updatedAutomobile);
         return updatedAutomobile;
     }
@@ -125,12 +99,9 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @CacheEvict(value = "automobile", key = "#id")
     public String removeAutomobileById(@PathVariable Long id) {
         log.info("removeAutomobileById() - start: id = {}", id);
-        Automobile deletedAutomobile = repository.findById(id)
-                .orElseThrow(ThereIsNoSuchAutoException::new);
-        deletedAutomobile.setDeleted(Boolean.TRUE);
-        repository.save(deletedAutomobile);
+        String autoIsDeleted = automobileService.removeAutoById(id);
         log.info("removeAutomobileById() - end: id = {}", id);
-        return "Deleted";
+        return autoIsDeleted;
     }
 
     @Hidden
@@ -138,7 +109,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeAllAutomobiles() {
         log.info("removeAllAutomobiles() - start");
-        repository.deleteAll();
+       automobileService.removeAllAuto();
         log.info("removeAllAutomobiles() - end");
     }
 
@@ -147,14 +118,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     public Collection<Automobile> findAutomobileByColor(
             @Parameter(description = "Name of the Automobile to be obtained. Cannot be empty.", required = true)
             @RequestParam(value = "color") String color) {
-        Instant start = Instant.now();
-        log.info("findAutomobileByColor() - start: time = {}", start);
-        log.info("findAutomobileByColor() - start: color = {}", color);
-        Collection<Automobile> collection = repository.findByColor(color);
-        Instant end = Instant.now();
-        log.info("findAutomobileByColor() - end: milliseconds = {}", getTiming(start, end));
-        log.info("findAutomobileByColor() - end: collection = {}", collection);
-        return collection;
+       return automobileService.findAutoByColor(color);
     }
 
     @GetMapping(value = "/automobiles", params = {"name", "color"})
@@ -163,7 +127,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
             @Parameter(description = "Name of the Automobile to be obtained. Cannot be empty.", required = true)
             @RequestParam(value = "name") String name, @RequestParam(value = "color") String color) {
         log.info("findAutomobileByNameAndColor() - start: name = {}, color = {}", name, color);
-        Collection<Automobile> collection = repository.findByNameAndColor(name, color);
+        Collection<Automobile> collection = automobileService.findAutoByNameAndColor(name, color);
         log.info("findAutomobileByNameAndColor() - end: collection = {}", collection);
         return collection;
     }
@@ -175,8 +139,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
             @RequestParam(value = "page") int page,
             @RequestParam(value = "size") int size) {
         log.info("findAutomobileByColorStartsWith() - start: color = {}", colorStartsWith);
-        Collection<Automobile> collection = repository
-                .findByColorStartsWith(colorStartsWith, PageRequest.of(page, size, Sort.by("color")));
+        Collection<Automobile> collection = automobileService.findAutoByColorStartsWith(colorStartsWith, page, size);
         log.info("findAutomobileByColorStartsWith() - end: collection = {}", collection);
         return collection;
     }
@@ -185,11 +148,8 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @ResponseStatus(HttpStatus.OK)
     public List<String> getAllAutomobilesByName() {
         log.info("getAllAutomobilesByName() - start");
-        List<Automobile> collection = repository.findAll();
-        List<String> collectionName = collection.stream()
-                .map(Automobile::getName)
-                .sorted()
-                .collect(Collectors.toList());
+
+        List<String> collectionName = automobileService.getAllAutoByName();
         log.info("getAllAutomobilesByName() - end");
         return collectionName;
     }
@@ -199,17 +159,17 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<Automobile> pushMessage(@RequestBody Automobile automobile) {
         try {
-            Topic autoTopic = Objects.requireNonNull(jmsTemplate
-                    .getConnectionFactory())
-                    .createConnection()
-                    .createSession()
-                    .createTopic("AutoTopic");
-            Automobile savedAutomobile = repository.save(automobile);
-            log.info("\u001B[32m" + "Sending Automobile with id: " + savedAutomobile.getId() + "\u001B[0m");
-            jmsTemplate.convertAndSend(autoTopic, savedAutomobile);
-            return new ResponseEntity<>(savedAutomobile, HttpStatus.OK);
+            Automobile savedAutomobile = automobileService.push(automobile);
+            return new ResponseEntity<>(savedAutomobile, HttpStatus.CREATED);
+
         } catch (Exception exception) {
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+    @Override
+    @GetMapping("/all-red-auto")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<List<Automobile>> getAllRedAuto() {
+        return ResponseEntity.ok(automobileService.allRedAuto());
     }
 }

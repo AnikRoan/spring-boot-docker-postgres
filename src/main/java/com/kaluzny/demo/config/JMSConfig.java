@@ -27,6 +27,17 @@ public class JMSConfig {
         containerFactory.setSubscriptionDurable(true);
         return containerFactory;
     }
+    @Bean
+    public DefaultJmsListenerContainerFactory redAutomobileJmsContFactory() {
+        DefaultJmsListenerContainerFactory factory = new DefaultJmsListenerContainerFactory();
+        factory.setPubSubDomain(true);
+        factory.setConnectionFactory(connectionFactory());
+        factory.setMessageConverter(jacksonJmsMsgConverter());
+
+        return factory;
+    }
+
+
 
     @Bean
     public CachingConnectionFactory connectionFactory() {
