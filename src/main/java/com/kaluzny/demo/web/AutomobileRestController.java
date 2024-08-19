@@ -75,7 +75,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @ResponseStatus(HttpStatus.OK)
     //@Cacheable(value = "automobile", sync = true)
     //TODO: We do not have PERSON on the user map
-    @PreAuthorize("hasRole('PERSON')")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public Automobile getAutomobileById(@PathVariable Long id) {
         log.info("getAutomobileById() - start: id = {}", id);
         Automobile receivedAutomobile = repository.findById(id)
@@ -123,6 +123,7 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
     @DeleteMapping("/automobiles/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @CacheEvict(value = "automobile", key = "#id")
+    @PreAuthorize("hasRole('ADMIN')")
     public String removeAutomobileById(@PathVariable Long id) {
         log.info("removeAutomobileById() - start: id = {}", id);
         Automobile deletedAutomobile = repository.findById(id)
